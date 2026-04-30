@@ -61,13 +61,11 @@ function renderDashboard(){
   <div class="stats-row"><div class="stat-card green fade-in"><div class="stat-label">They owe you</div><div class="stat-value">${formatCurrency(t.owed)}</div><div class="stat-sub">${t.owed>0?t.owed>10000?'Recovery pending':'Collect soon':'All clear'}</div></div>
   <div class="stat-card red fade-in" style="animation-delay:.05s"><div class="stat-label">You owe</div><div class="stat-value">${formatCurrency(t.owe)}</div><div class="stat-sub">${t.owe>0?t.owe>10000?'This keeps you up at night':'Manageable':'Debt free'}</div></div></div>
   ${roastHtml}${salaryHtml}${cbHtml}
-  <div class="quick-actions">
+  <div class="quick-actions" style="grid-template-columns:repeat(2,1fr)">
     <button class="quick-btn g1 glass" data-action="modal-card"><div class="qb-icon" style="color:var(--green)">${ICO.cardBuy}</div>Card Buy</button>
     <button class="quick-btn g2 glass" data-action="modal-lent"><div class="qb-icon" style="color:var(--red)">${ICO.cashLent}</div>Cash Lent</button>
     <button class="quick-btn g3 glass" data-action="modal-borrow"><div class="qb-icon" style="color:var(--blue)">${ICO.borrow}</div>Borrowed</button>
-    <button class="quick-btn g4 glass" data-action="modal-expense"><div class="qb-icon" style="color:var(--pink)">${ICO.expense}</div>Expense</button>
-    <button class="quick-btn g5 glass" data-action="modal-paste"><div class="qb-icon" style="color:var(--amber)">${ICO.paste}</div>Paste SMS</button>
-    <button class="quick-btn g6 glass" data-action="go" data-href="#/expenses"><div class="qb-icon" style="color:var(--accent)">${ICO.chart}</div>My Spends</button>
+    <button class="quick-btn g4 glass" data-action="modal-expense"><div class="qb-icon" style="color:var(--pink)">${ICO.expense}</div>Add Expense</button>
   </div>
   <div class="section"><div class="section-title">Recent Activity<a class="see-all" data-action="go" data-href="#/history">See All</a></div><div class="list-card glass">${actHtml}</div></div>`;
 }

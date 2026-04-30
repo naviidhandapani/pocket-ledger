@@ -124,10 +124,18 @@ const App = {
       case 'modal-add-card':showAddCardModal(); break;
       case 'modal-expense': showExpenseModal(el.dataset.group); break;
       case 'modal-group':   showGroupModal(); break;
-      case 'modal-paste':   showPasteModal(); break;
       case 'modal-sub':     showSubModal(); break;
       case 'modal-salary':  showSalaryModal(); break;
       case 'close-modal':   closeModal(); break;
+
+      // ── Month Navigation ────────────────────────────────────
+      case 'prev-spend-month': prevSpendMonth(); break;
+      case 'next-spend-month': nextSpendMonth(); break;
+      case 'go-spend-month':
+        spendMonth.year  = parseInt(el.dataset.year);
+        spendMonth.month = parseInt(el.dataset.month);
+        this.route();
+        break;
 
       // ── Actions ─────────────────────────────────────────────
       case 'mark-cb':

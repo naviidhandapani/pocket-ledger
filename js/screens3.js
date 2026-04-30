@@ -1,28 +1,177 @@
 /* screens3.js - Expenses, Groups, History, Settings */
-function renderExpenses(){
-  const groups=Store.getGroups(), now=new Date();
-  const mTotal=Store.getMonthTotal(now.getFullYear(),now.getMonth());
-  const mExps=Store.getMonthExpenses(now.getFullYear(),now.getMonth());
-  const salary=Store.getSalary();
-  const cats={};
-  mExps.forEach(e=>{const c=e.category||'other';cats[c]=(cats[c]||0)+e.amount});
-  let catHtml='';
-  Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([c,amt])=>{
-    const pct=mTotal>0?Math.round(amt/mTotal*100):0;
-    catHtml+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><div class="li-avatar pink" style="width:36px;height:36px">${catIcon(c)}</div><div style="flex:1"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="font-weight:600">${CAT_LABELS[c]||c}</span><span style="color:var(--red);font-weight:700">${formatCurrency(amt)}</span></div><div class="emi-bar"><div class="emi-bar-fill" style="width:${pct}%;background:var(--accent-g)"></div></div></div></div>`;
+
+/* ── Month State ── */
+let spendMonth = { year: new Date().getFullYear(), month: new Date().getMonth() };
+
+function prevSpendMonth() {
+  spendMonth.month--;
+  if (spendMonth.month < 0) { spendMonth.month = 11; spendMonth.year--; }
+  App.route();
+}
+function nextSpendMonth() {
+  const now = new Date();
+  const isCurrentOrFuture = spendMonth.year > now.getFullYear() ||
+    (spendMonth.year === now.getFullYear() && spendMonth.month >= now.getMonth());
+  if (isCurrentOrFuture) return;
+  spendMonth.month++;
+  if (spendMonth.month > 11) { spendMonth.month = 0; spendMonth.year++; }
+  App.route();
+}
+
+/* ── Trend Chart (last 6 months CSS bars) ── */
+function renderTrendChart() {
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    let m = now.getMonth() - i;
+    let y = now.getFullYear();
+    while (m < 0) { m += 12; y--; }
+    const total = Store.getMonthTotal(y, m);
+    const label = new Date(y, m).toLocaleDateString('en-IN', { month: 'short' });
+    const isSelected = y === spendMonth.year && m === spendMonth.month;
+    months.push({ y, m, total, label, isSelected });
+  }
+  const max = Math.max(...months.map(x => x.total), 1);
+  const bars = months.map(mo => {
+    const pct = Math.max(4, Math.round((mo.total / max) * 100));
+    const isNow = mo.y === now.getFullYear() && mo.m === now.getMonth();
+    return `
+      <div class="trend-col" data-action="go-spend-month" data-year="${mo.y}" data-month="${mo.m}" style="cursor:pointer">
+        <div class="trend-val" style="color:${mo.isSelected ? 'var(--accent)' : 'var(--text-muted)'}">
+          ${mo.total > 0 ? (mo.total >= 1000 ? Math.round(mo.total/1000)+'k' : Math.round(mo.total)) : ''}
+        </div>
+        <div class="trend-bar-wrap">
+          <div class="trend-bar-fill ${mo.isSelected ? 'selected' : ''}" style="height:${pct}%"></div>
+        </div>
+        <div class="trend-label ${mo.isSelected ? 'selected' : ''}">${mo.label}${isNow ? ' ●' : ''}</div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="section">
+      <div class="section-title">6-Month Trend</div>
+      <div class="glass" style="padding:18px 16px 12px;border-radius:16px">
+        <div class="trend-chart">${bars}</div>
+      </div>
+    </div>`;
+}
+
+/* ── Category Breakdown ── */
+function renderCategoryBreakdown(mExps, mTotal) {
+  const cats = {};
+  mExps.forEach(e => { const c = e.category || 'other'; cats[c] = (cats[c] || 0) + e.amount; });
+  if (!Object.keys(cats).length) return '';
+  let html = '';
+  Object.entries(cats).sort((a, b) => b[1] - a[1]).forEach(([c, amt]) => {
+    const pct = mTotal > 0 ? Math.round(amt / mTotal * 100) : 0;
+    html += `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div class="li-avatar pink" style="width:38px;height:38px;flex-shrink:0">${catIcon(c)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px">
+            <span style="font-weight:600">${CAT_LABELS[c] || c}</span>
+            <span style="color:var(--red);font-weight:700">${formatCurrency(amt)}</span>
+          </div>
+          <div class="emi-bar">
+            <div class="emi-bar-fill" style="width:${pct}%;background:var(--accent-g)"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">${pct}% of total</div>
+        </div>
+      </div>`;
   });
-  let grpHtml='';
-  groups.forEach((g,i)=>{
-    const total=Store.getGroupTotal(g.id), exps=Store.getExpensesByGroup(g.id);
-    const ucats=[...new Set(exps.map(e=>e.category||'other'))];
-    grpHtml+=`<div class="trip-card glass fade-in" style="animation-delay:${i*.05}s" data-action="view-group" data-id="${g.id}"><div class="tc-header"><div class="tc-name">${esc(g.name)}</div><div class="tc-amount">${formatCurrency(total)}</div></div><div class="tc-meta">${exps.length} item${exps.length!==1?'s':''} · ${formatDateShort(g.createdAt)}</div><div class="tc-tags">${ucats.slice(0,4).map(c=>`<span class="tag">${CAT_LABELS[c]||c}</span>`).join('')}</div></div>`;
+  return `<div class="section"><div class="section-title">Where It Went</div><div class="form-preview">${html}</div></div>`;
+}
+
+/* ── Expenses List for Selected Month ── */
+function renderExpensesList(mExps) {
+  if (!mExps.length) return '';
+  const sorted = [...mExps].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+  let h = '';
+  sorted.forEach((e, i) => {
+    h += `<div class="list-item glass fade-in" style="animation-delay:${i * 0.03}s">
+      <div class="li-avatar pink">${catIcon(e.category)}</div>
+      <div class="li-info">
+        <div class="li-name">${esc(e.name)}</div>
+        <div class="li-sub">${CAT_LABELS[e.category] || e.category || 'Other'} · ${formatDateShort(e.date || e.createdAt)}</div>
+      </div>
+      <div class="li-right">
+        <div class="li-amount red">${formatCurrency(e.amount)}</div>
+        <button class="modal-close" style="margin-top:4px" data-action="delete-expense" data-id="${e.id}">${ICO.x}</button>
+      </div>
+    </div>`;
   });
-  return `<div class="page-header fade-in"><h1>My Spends</h1><p class="subtitle">${new Date().toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</p></div>
-  <div class="stats-row"><div class="stat-card red fade-in"><div class="stat-label">This Month</div><div class="stat-value">${formatCurrency(mTotal)}</div>${mTotal>0?`<div class="stat-sub">${Object.keys(cats).length} categories</div>`:''}</div>
-  ${salary>0?`<div class="stat-card green fade-in"><div class="stat-label">Budget Left</div><div class="stat-value">${formatCurrency(Math.max(0,salary-mTotal-Store.getMonthlyEMIOutflow()))}</div></div>`:''}</div>
-  ${catHtml?`<div class="section"><div class="section-title">Where it went</div><div class="form-preview">${catHtml}</div></div>`:''}
-  <div class="section"><div class="section-title">Groups<button class="btn-inline" data-action="modal-group" style="font-size:12px;padding:7px 14px;cursor:pointer">+ New Group</button></div>
-  ${grpHtml||`<div class="empty-state"><div class="empty-icon">${ICO.wallet}</div><h3>No groups yet</h3><p>Create one to organize expenses.<br>Trips, monthly budgets, anything.</p></div>`}</div>`;
+  return `<div class="section"><div class="section-title">All Expenses <span style="color:var(--text-muted);font-weight:400;font-size:12px">${mExps.length} entries</span></div><div class="list-card glass">${h}</div></div>`;
+}
+
+/* ── Main Expenses Screen ── */
+function renderExpenses() {
+  const { year, month } = spendMonth;
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+  const mExps = Store.getMonthExpenses(year, month);
+  const mTotal = mExps.reduce((s, e) => s + e.amount, 0);
+  const salary = Store.getSalary();
+  const monthLabel = new Date(year, month).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const canGoNext = !isCurrentMonth;
+
+  const groups = Store.getGroups();
+  let grpHtml = '';
+  groups.forEach((g, i) => {
+    const total = Store.getGroupTotal(g.id), exps = Store.getExpensesByGroup(g.id);
+    const ucats = [...new Set(exps.map(e => e.category || 'other'))];
+    grpHtml += `<div class="trip-card glass fade-in" style="animation-delay:${i * .05}s" data-action="view-group" data-id="${g.id}">
+      <div class="tc-header"><div class="tc-name">${esc(g.name)}</div><div class="tc-amount">${formatCurrency(total)}</div></div>
+      <div class="tc-meta">${exps.length} item${exps.length !== 1 ? 's' : ''} · ${formatDateShort(g.createdAt)}</div>
+      <div class="tc-tags">${ucats.slice(0, 4).map(c => `<span class="tag">${CAT_LABELS[c] || c}</span>`).join('')}</div>
+    </div>`;
+  });
+
+  return `
+    <div class="page-header fade-in" style="margin-bottom:16px">
+      <h1>My Spends</h1>
+    </div>
+
+    <!-- Month Picker -->
+    <div class="month-picker glass fade-in">
+      <button class="month-nav-btn" data-action="prev-spend-month">${ICO.back}</button>
+      <div class="month-picker-label">
+        <div class="month-name">${monthLabel}</div>
+        ${isCurrentMonth ? '<div class="month-tag">Current</div>' : ''}
+      </div>
+      <button class="month-nav-btn ${canGoNext ? '' : 'disabled'}" data-action="next-spend-month" ${canGoNext ? '' : 'disabled'}>${ICO.chevron}</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" style="margin-top:16px">
+      <div class="stat-card red fade-in">
+        <div class="stat-label">Spent</div>
+        <div class="stat-value">${formatCurrency(mTotal)}</div>
+        ${mTotal > 0 ? `<div class="stat-sub">${Object.keys(Object.fromEntries(mExps.map(e => [e.category || 'other', 1]))).length} categories</div>` : '<div class="stat-sub">Nothing yet</div>'}
+      </div>
+      ${salary > 0 && isCurrentMonth ? `<div class="stat-card green fade-in">
+        <div class="stat-label">Budget Left</div>
+        <div class="stat-value">${formatCurrency(Math.max(0, salary - mTotal - Store.getMonthlyEMIOutflow()))}</div>
+        <div class="stat-sub">${Math.round(Math.max(0, (salary - mTotal - Store.getMonthlyEMIOutflow()) / salary * 100))}% remaining</div>
+      </div>` : ''}
+    </div>
+
+    <!-- Trend Chart -->
+    ${renderTrendChart()}
+
+    <!-- Category Breakdown -->
+    ${renderCategoryBreakdown(mExps, mTotal)}
+
+    <!-- Expenses List -->
+    ${renderExpensesList(mExps)}
+
+    <!-- Groups -->
+    <div class="section">
+      <div class="section-title">Groups <button class="btn-inline" data-action="modal-group" style="font-size:12px;padding:7px 14px;cursor:pointer">+ New</button></div>
+      ${grpHtml || `<div class="empty-state"><div class="empty-icon">${ICO.wallet}</div><h3>No groups yet</h3><p>Create one to organize expenses.<br>Trips, monthly budgets, anything.</p></div>`}
+    </div>
+
+    <!-- Add Expense Button -->
+    <button class="btn-submit purple fade-in" style="margin-top:24px" data-action="modal-expense">+ Add Expense</button>
+  `;
 }
 
 function renderGroupDetail(id){
